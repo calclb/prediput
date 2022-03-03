@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use crate::{input};
+use crate::input;
 
 
 /// Type used to validate a value of a type under one or more validation (boolean) functions.

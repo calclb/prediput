@@ -1,8 +1,9 @@
 //! An intuitive, no-frills command-line prompting library for Rust.
-// #![deny(missing_docs, missing_copy_implementations, trivial_casts, trivial_numeric_casts, unsafe_code, unstable_features, unused_import_braces, unused_qualifications)]
+#![deny(missing_docs, missing_copy_implementations, trivial_casts, trivial_numeric_casts, unsafe_code, unstable_features, unused_import_braces, unused_qualifications)]
 
 /// Module for single-select dialogs.
-pub mod selection;
+pub mod select;
+/// Module for text-based prompts with custom validation.
 pub mod prompting;
 
 use std::io;
@@ -44,10 +45,10 @@ pub fn input(prompt: &str) -> io::Result<String> {
 
 /// Prompts for a keystroke (either `'y'` or `'n'`).
 /// Returns true when `'y'` is pressed, or false when `'n'` is pressed.
-pub fn confirm(prompt: &str) -> io::Result<bool> {
+pub fn confirm(prompt: &str, hide_after: bool) -> io::Result<bool> {
     let term = Term::stdout();
     term.hide_cursor()?;
-    print!("{} (y/n): ", prompt);
+    print!("{}", prompt);
     stdout().flush()?;
 
     let is_confirmed = loop { // per keystroke
@@ -58,6 +59,9 @@ pub fn confirm(prompt: &str) -> io::Result<bool> {
             _ => continue
         }
     };
+    if hide_after {
+        term.clear_line()?;
+    }
     term.show_cursor()?;
     Ok(is_confirmed)
 }
@@ -92,7 +96,7 @@ pub fn any_key_continue() -> io::Result<()> {
     Ok(())
 }
 
-/// Clears the terminal. Panics if an error is propogated internally.
+/// Clears the terminal. Any errors that occur are propogated to the caller.
 pub fn clear_terminal() -> io::Result<()> {
     let term = Term::stdout();
     term.clear_screen()?;
