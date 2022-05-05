@@ -13,7 +13,7 @@ use console::{Key, Term};
 
 /// A convenience function to get a user input.
 /// Note that this function uses the [`print!`](std::print) macro (before flushing stdout) so that the programmer can make prompts in-line.
-///
+/// 
 /// This function continues to prompt the user until an input can be properly converted to the desired type; `invalid_msg` is printed when the attempted conversion fails.
 pub fn prompt<T: FromStr>(prompt: &str, invalid_msg: &str) -> io::Result<T> {
     loop {
