@@ -3,6 +3,7 @@ use std::io;
 use unicode_segmentation::UnicodeSegmentation;
 
 /// Represents a single-select dialog.
+#[must_use]
 pub struct Selection<'a, T>
 where
     T: Copy,
@@ -116,14 +117,17 @@ where
 
     /// Prompts the user for an input by printing `msg` with `println!()`.
     /// This function will print the textual part of all options, and return the corresponding part represented by it (i.e. the value passed as `T`).
+    ///
+    /// # Errors
+    /// Propogates the following errors:
+    /// - [`Term::read_key`]
+    /// - [`Term::hide_cursor`]
+    /// - [`Term::show_cursor`]
+    /// - [`Term::clear_last_lines`]
     pub fn prompt(&self, msg: &str) -> io::Result<(&'a str, Option<&'a str>, T)> {
         let term = Term::stdout();
         let mut selected_index = self.default_index;
-        let prefix_char_count = if let Some(l) = self.overridden_prefix_len {
-            l
-        } else {
-            self.prefix.graphemes(true).count()
-        };
+        let prefix_char_count = self.overridden_prefix_len.map_or_else(|| self.prefix.graphemes(true).count(), |l| l);
 
         for _ in 0..self.padding {
             println!();
@@ -145,7 +149,7 @@ where
             {
                 let s = match (i == selected_index, selected_option) {
                     (true, Some(sel_str)) => format!("{}{}", self.prefix, sel_str),
-                    (true, None) => displayed_str.to_string(),
+                    (true, None) => (*displayed_str).to_string(),
                     _ => {
                         if self.is_aligned {
                             let mut spacing = String::new();
@@ -154,7 +158,7 @@ where
                             }
                             format!("{}{}", spacing, displayed_str)
                         } else {
-                            displayed_str.to_string()
+                            (*displayed_str).to_string() // dereferencing &str and calling str::to_string is faster than &str::to_string
                         }
                     }
                 };
@@ -166,13 +170,14 @@ where
 
             term.hide_cursor()?;
 
+            // TODO consider integer wrapping
             match term.read_key()? {
                 Key::ArrowUp => {
                     if selected_index as isize == -1 {
                         selected_index = self.options.len() - 1;
                     } else {
-                        selected_index = ((selected_index as i64 - 1 + self.options.len() as i64)
-                            % self.options.len() as i64)
+                        selected_index = ((selected_index as i32 - 1 + self.options.len() as i32)
+                            % self.options.len() as i32)
                             as usize;
                     }
                 }

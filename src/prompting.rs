@@ -1,8 +1,8 @@
 use std::str::FromStr;
 use crate::input;
 
-
 /// Type used to validate a value of a type under one or more validation (boolean) functions.
+#[must_use]
 pub struct Predicate<'a, T> {
     /// Function that determines whether the predicate passes.
     boxed_validation_fn: Box<dyn Fn(&T) -> bool>,
@@ -43,6 +43,7 @@ impl<'a, T> Predicate<'a, T> {
 ///     - If the conversion or any predicate fails, the user will be prompted again.
 ///
 /// Note that predicates are ordered first-in. In other words, the first predicate added to the prompter will be the first one tested (whereas the last one added will be tested last).
+#[must_use]
 pub struct Prompter<'a, T>
     where T: FromStr,
 {
@@ -55,79 +56,67 @@ pub struct Prompter<'a, T>
 impl<'a, T> Prompter<'a, T>
     where T: FromStr
 {
-    /// Creates a `PromptBuilder` with a `conversion_err_msg` to print if the type conversion fails.
+    /*/// Creates a `PromptBuilder` with a `conversion_err_msg` to print if the type conversion fails.
     ///
     /// Use the [`pred()`](PromptBuilder::pred) function to add [`Predicate`]s to use when validating the value of the converted type, and the ['build()'](PromptBuilder::build) function to construct the final `Prompter` instance.
-    pub fn builder(conversion_err_msg: &'a str) -> PromptBuilder<'a, T> {
+     pub fn builder(conversion_err_msg: &'a str) -> PromptBuilder<'a, T> {
         PromptBuilder {
             conversion_err_msg,
             predicates: Vec::new(),
         }
+    } */
+    
+    /// Creates a `Prompter` with a `conversion_err_msg` to print if the type conversion fails.
+    ///
+    /// Use the [`pred()`](Prompter::pred) function to add [`Predicate`]s to use when validating the value of the converted type.
+    pub fn new(conversion_err_msg: &'a str) -> Self {
+        Self {
+            conversion_err_msg,
+            predicates: Vec::new()
+        }
     }
-
+    
+    /// Creates a `Prompter` with a `conversion_err_msg` to print if the type conversion fails, and [`Predicate`]s to evaluate when an input is received.
+    pub fn from_preds(conversion_err_msg: &'a str, predicates: Vec<Predicate<'a, T>>) -> Self {
+        Self {
+            conversion_err_msg,
+            predicates
+        }
+    }
+    
+    /// Consumes the existing `Prompter` and returns a new `Prompter` that includes the new predicate.
+    pub fn pred(mut self, predicate: Predicate<'a, T>) -> Self {
+        self.predicates.push(predicate);
+        self
+    }
+    
     /// Prompts the user for an input.
     /// This function will continue prompting if either the user's input cannot be converted to the desired type or if any of the predicates fail.
-    pub fn prompt(&self, msg: &str) -> T
+    #[must_use] pub fn prompt(&self, msg: &str) -> T
     {
         'input: loop
         {
             match input(msg) // essentially, if this matches an Err(_) result, repeat the loop. The error shouldn't make the program panic.
             {
                 Ok(val) => { // now actually convert the value and test the predicates.
-                    match val.trim().parse::<T>()
-                    {
-                        Ok(val) => {
-                            for p in &self.predicates
+                    if let Ok(val) = val.trim().parse::<T>() {
+                        for p in &self.predicates
+                        {
+                            if !p.validate(&val)
                             {
-                                if !p.validate(&val)
-                                {
-                                    println!("{}", p.invalid_msg());
-                                    continue 'input;
-                                }
-                            } // at this point, all predicates pass
-                            return val;
-                        },
-                        Err(_) => {
-                            println!("{}", self.conversion_err_msg);
-                            continue;
-                        }
+                                println!("{}", p.invalid_msg());
+                                continue 'input;
+                            }
+                        } // at this point, all predicates pass
+                        return val;
                     }
+                    // at this point, the loop already continued if a predicate failed, and returned if all predicates pass (only case left is a conversion error)
+                    println!("{}", self.conversion_err_msg);
                 }
                 Err(_) => {
                     println!("Something went wrong with reading the input.");
                 }
             }
-        }
-    }
-}
-
-/// Type used to create a [`Prompter`].
-///
-/// Call the [`pred()`](PromptBuilder::pred) function on this struct to add a [`Predicate`].
-///
-/// Call [`build()`](PromptBuilder::build) to get the prompter back with the predicates added in the way above.
-pub struct PromptBuilder<'a, T>
-    where T: FromStr
-{
-    conversion_err_msg: &'a str,
-    predicates: Vec<Predicate<'a, T>>,
-}
-
-impl<'a, T> PromptBuilder<'a, T>
-    where T: FromStr
-{
-
-    /// Consumes the existing `Prompter` and returns a new `Prompter` with the predicate.
-    pub fn pred(mut self, predicate: Predicate<'a, T>) -> Self {
-        self.predicates.push(predicate);
-        self
-    }
-
-    /// Builds a `Prompter` with the properties of a `PromptBuilder` instance (namely, the `Predicate`s). The `PromptBuilder` being passed is consumed.
-    pub fn build(self) -> Prompter<'a, T> {
-        Prompter {
-            conversion_err_msg: self.conversion_err_msg,
-            predicates: self.predicates
         }
     }
 }
