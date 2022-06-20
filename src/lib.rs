@@ -14,8 +14,6 @@
 pub mod prompting;
 /// Module for single-select dialogs.
 pub mod select;
-/// Module for multi-select dialogs.
-pub mod multi_select;
 
 use std::io;
 use std::io::{stdout, Write};
@@ -29,11 +27,15 @@ use console::{Key, Term};
 ///
 /// # Errors
 /// As this function internally uses the [`input()`](crate::input) function, errors that occur there will be propgated to the caller.
-pub fn prompt<T: FromStr>(prompt: &str, invalid_msg: &str) -> io::Result<T> {
+#[must_use = "this function returns the converted value, which should be used"]
+pub fn prompt<T: FromStr>(prompt: &str, invalid_msg: &str) -> T {
     loop {
-        if let Ok(val) = input(prompt)?.trim().parse::<T>() {
-            return Ok(val);
+        if let Ok(s) = input(prompt) {
+            if let Ok(val) = s.trim().parse::<T>() {
+                return val;
+            }
         }
+    
         println!("{}", invalid_msg);
     }
 }
