@@ -3,7 +3,8 @@ use crate::input;
 
 /// Type used to validate a value of a type under one or more validation (boolean) functions.
 #[must_use]
-pub struct Predicate<'a, T> {
+pub struct Predicate<'a, T>
+{
     /// Function that determines whether the predicate passes.
     boxed_validation_fn: Box<dyn Fn(&T) -> bool>,
     /// Message passed back when validation fails.
@@ -27,6 +28,7 @@ impl<'a, T> Predicate<'a, T> {
     }
 
     /// Returns the predicate's validation message.
+    #[must_use = "the only purpose of the method is to return the validation message, which should be used"]
     pub fn invalid_msg(&self) -> &str {
         self.validation_msg
     }
@@ -45,7 +47,8 @@ impl<'a, T> Predicate<'a, T> {
 /// Note that predicates are ordered first-in. In other words, the first predicate added to the prompter will be the first one tested (whereas the last one added will be tested last).
 #[must_use]
 pub struct Prompter<'a, T>
-    where T: FromStr,
+where
+    T: FromStr
 {
     /// Message passed back when conversion fails.
     conversion_err_msg: &'a str,
@@ -56,16 +59,6 @@ pub struct Prompter<'a, T>
 impl<'a, T> Prompter<'a, T>
     where T: FromStr
 {
-    /*/// Creates a `PromptBuilder` with a `conversion_err_msg` to print if the type conversion fails.
-    ///
-    /// Use the [`pred()`](PromptBuilder::pred) function to add [`Predicate`]s to use when validating the value of the converted type, and the ['build()'](PromptBuilder::build) function to construct the final `Prompter` instance.
-     pub fn builder(conversion_err_msg: &'a str) -> PromptBuilder<'a, T> {
-        PromptBuilder {
-            conversion_err_msg,
-            predicates: Vec::new(),
-        }
-    } */
-    
     /// Creates a `Prompter` with a `conversion_err_msg` to print if the type conversion fails.
     ///
     /// Use the [`pred()`](Prompter::pred) function to add [`Predicate`]s to use when validating the value of the converted type.

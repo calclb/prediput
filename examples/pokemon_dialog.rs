@@ -1,4 +1,4 @@
-use prediput::select::Selection;
+use prediput::select::{Select, SelectOpt};
 
 use colored::*;
 
@@ -45,20 +45,18 @@ fn main() {
         ": Ooga baluga let's go Tortuga".truecolor(br, bg, bb)
     );
 
-    let sel = Selection::new(
+    let sel = Select::new(
         &prefix,
         vec![
-            (&a, Some(&a_selected), "Quick Attack"),
-            (&b, Some(&b_selected), "Flamethrower"),
-            (&c, Some(&c_selected), "Blizzard"),
-            (&d, Some(&d_selected), "Trick Room"),
+            SelectOpt::new(&a, Some(&a_selected), "Quick Attack"),
+            SelectOpt::new(&b, Some(&b_selected), "Flamethrower"),
+            SelectOpt::new(&c, Some(&c_selected), "Blizzard"),
+            SelectOpt::new(&d, Some(&d_selected), "Trick Room"),
         ],
     )
     .clear_after()
-    .aligned()
-    .padding(1)
-    .override_prefix_len(3);
+    .aligned();
 
-    let (_, _, s) = sel.prompt("Make a decision:").unwrap();
+    let s = sel.prompt(&"Make a decision:".to_owned()).unwrap();
     println!("You selected {}", s);
 }

@@ -8,12 +8,16 @@
     clippy::cargo,
 )]
 
+#![allow(clippy::module_name_repetitions)]
+
 #![allow(clippy::missing_const_for_fn)]
 
 /// Module for text-based prompts with custom validation.
 pub mod prompting;
 /// Module for single-select dialogs.
 pub mod select;
+/// Module for library macros.
+mod macros;
 
 use std::io;
 use std::io::{stdout, Write};

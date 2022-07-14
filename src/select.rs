@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::io;
 
 use console::{Key, Term};
@@ -5,9 +6,10 @@ use unicode_segmentation::UnicodeSegmentation;
 
 /// Represents a single-select dialog.
 #[must_use]
-pub struct Select<'a, T>
+pub struct Select<C, D>
 where
-    T: Copy,
+    C: Copy,
+    D: Display,
 {
     /// The index of the default option (e.g. 0 represents the first option in the `options` vector).
     default_index: usize,
@@ -16,43 +18,67 @@ where
     /// Determines if the selected and unselected answers should be aligned.
     is_aligned: bool,
     /// The prefix to print ahead of the currently selected item.
-    prefix: &'a str,
-    /// Alternate prefix length to use in the case of external escape sequences (e.g. for colorizing).
-    overridden_prefix_len: Option<usize>,
+    prefix: D,
     /// Determines whether to clear the prompt after an answer is given.
     clear_after_response: bool,
-    
-    /// A vector of tuples that contain four values:
-    /// 1. the string to display for the value by default
-    /// 2. the string to display when such value is selected
-    /// 3. the type's value
-    ///     - consider using an enum to represent the value and match it as needed after prompting
-    options: Vec<(&'a str, Option<&'a str>, T)>,
+    /// The options that the selection displays when prompting.
+    options: Vec<SelectOpt<C, D>>,
 }
 
-impl<'a, T> Select<'a, T>
+/// Represents a single option in a [`Select`](Select).
+pub struct SelectOpt<C, D>
 where
-    T: Copy,
+    C: Copy,
+    D: Display,
+{
+    /// The text to render by default.
+    pub display_text: D,
+    /// The text to render when the option is currently selected.
+    pub selected_text: Option<D>,
+    /// The value that the option represents. This will be returned by the prompter.
+    pub value: C,
+}
+
+impl<C, D> SelectOpt<C, D>
+where
+    C: Copy,
+    D: Display
+{
+    /// Constructs a new option.
+    /// Prompts will return the `value` passed into this struct.
+    pub fn new(display_text: D, selected_text: Option<D>, value: C) -> Self {
+        Self {
+            display_text,
+            selected_text,
+            value,
+        }
+    }
+}
+
+impl<C, D> Select<C, D>
+where
+    C: Copy,
+    D: Display,
 {
     /// Creates a new selection with a collection of tuples containing the following items:
     /// - the text to print
     /// - the thing that maps to that text (i.e. if that text is selected, the corresponding thing is returned by the [`prompt()`](Select::prompt) function).
-    pub fn new(selected_prefix: &'a str, options: Vec<(&'a str, Option<&'a str>, T)>) -> Self {
+    pub fn new(selected_prefix: D, options: Vec<SelectOpt<C, D>>) -> Self {
+
         Self {
             default_index: 0,
             padding: 0,
             is_aligned: false,
             prefix: selected_prefix,
-            overridden_prefix_len: None,
             clear_after_response: false,
             options,
         }
     }
 
     /// Adds an option to the selection; consumes the calling instance and returns the transformed one.
-    pub fn opt(self, tup: (&'a str, Option<&'a str>, T)) -> Self {
+    pub fn opt(self, select_opt: SelectOpt<C, D>) -> Self {
         let mut options_vec = self.options;
-        options_vec.push(tup);
+        options_vec.push(select_opt);
         Self {
             options: options_vec,
             ..self
@@ -70,24 +96,9 @@ where
 
     /// Sets the prefix for the selected item.
     /// Consumes the `Select` and returns a transformed one.
-    ///
-    /// **It is strongly recommended to call [`override_prefix_len()`](Select::override_prefix_len) when aligning with external escape sequences, particularly from color crates.**
-    pub fn prefix(self, selected_prefix: &'a str) -> Self {
+    pub fn prefix(self, selected_prefix: D) -> Self {
         Self {
             prefix: selected_prefix,
-            ..self
-        }
-    }
-
-    /// Sets the spacing for unselected items when alignment is toggled with [`aligned()`](Select::aligned).
-    ///
-    /// **It is strongly recommended to call this method when aligning with external escape sequences, particularly from color crates.**
-    ///
-    /// Overrides the prefix length for the selected item. This value will be used for alignment if it is a value other than `None`.
-    /// Consumes the `Select` and returns a transformed one.
-    pub fn override_prefix_len(self, prefix_len: usize) -> Self {
-        Self {
-            overridden_prefix_len: Some(prefix_len),
             ..self
         }
     }
@@ -120,7 +131,7 @@ where
     }
 
     /// Prompts the user for an input by printing `msg` with `println!()`.
-    /// This function will print the textual part of all options, and return the corresponding part represented by it (i.e. the value passed as `T`).
+    /// This function will print the textual part of all options, and return the corresponding value represented by it (i.e. a `value` -- which conforms to type `C`).
     ///
     /// # Errors
     /// Propogates the following errors:
@@ -128,10 +139,10 @@ where
     /// - [`Term::hide_cursor`]
     /// - [`Term::show_cursor`]
     /// - [`Term::clear_last_lines`]
-    pub fn prompt(&self, msg: &str) -> io::Result<(&'a str, Option<&'a str>, T)> {
+    pub fn prompt(&self, msg: D) -> io::Result<C> {
         let term = Term::stdout();
         let mut selected_index = self.default_index;
-        let prefix_char_count = self.overridden_prefix_len.map_or_else(|| self.prefix.graphemes(true).count(), |l| l);
+        let prefix_char_count = self.prefix.to_string().decolored().graphemes(true).count();
 
         for _ in 0..self.padding {
             println!();
@@ -149,20 +160,20 @@ where
             term.clear_last_lines(self.options.len())?;
 
             // print the items
-            for (i, (displayed_str, selected_option, _)) in self.options.iter().enumerate() 
+            for (i, SelectOpt { display_text, selected_text, .. }) in self.options.iter().enumerate()
             {
-                let s = match (i == selected_index, selected_option) {
+                let s = match (i == selected_index, selected_text) {
                     (true, Some(sel_str)) => format!("{}{}", self.prefix, sel_str),
-                    (true, None) => (*displayed_str).to_string(),
+                    (true, None) => (*display_text).to_string(),
                     _ => {
                         if self.is_aligned {
                             let mut spacing = String::new();
                             for _ in 0..prefix_char_count {
                                 spacing.push(' ');
                             }
-                            format!("{}{}", spacing, displayed_str)
+                            format!("{}{}", spacing, display_text)
                         } else {
-                            (*displayed_str).to_string() // dereferencing &str and calling str::to_string is faster than &str::to_string
+                            (*display_text).to_string() // dereferencing &str and calling str::to_string is faster than &str::to_string
                         }
                     }
                 };
@@ -195,7 +206,7 @@ where
                 }
 
                 Key::Enter => {
-                    let tup = *self
+                    let select_opt = self
                         .options
                         .get(selected_index)
                         .expect("unexpectedly failed to get selected item");
@@ -204,10 +215,34 @@ where
                         term.clear_last_lines(self.options.len() + self.padding + 1)?; // + 1 implies we also want to clear the prompt line
                     }
                     term.show_cursor()?;
-                    return Ok(tup);
+                    return Ok(select_opt.value);
                 }
                 _ => {}
             }
         }
+    }
+}
+
+trait Decolor {
+    /// Removes color escape sequences from a string.
+    fn decolored(&self) -> Self;
+}
+
+impl Decolor for String {
+    fn decolored(&self) -> Self {
+        let mut s = Self::new();
+
+        let mut tail_str = &self[..];
+        while let Some(split_index) = tail_str.find(|c: char| c.is_ascii_control() && c == '\x1B')
+        {
+            let (start_str, split_str) = tail_str.split_at(split_index);
+
+            if let Some(split_end_inc_index) = split_str.find('m') {
+                s.push_str(start_str);
+                tail_str = &split_str[split_end_inc_index+1..]; // excludes 'm' from the remaining string ref to parse
+            }
+        }
+        s.push_str(tail_str); // if there aren't any other color codes, just concat the rest of the string since there's nothing to remove
+        s
     }
 }
