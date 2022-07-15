@@ -162,18 +162,15 @@ where
             // print the items
             for (i, SelectOpt { display_text, selected_text, .. }) in self.options.iter().enumerate()
             {
-                let s = match (i == selected_index, selected_text) {
+                let s = match (i == selected_index, selected_text)
+                {
+                    (true, None) => format!("{}{}", self.prefix, display_text),
                     (true, Some(sel_str)) => format!("{}{}", self.prefix, sel_str),
-                    (true, None) => (*display_text).to_string(),
                     _ => {
                         if self.is_aligned {
-                            let mut spacing = String::new();
-                            for _ in 0..prefix_char_count {
-                                spacing.push(' ');
-                            }
-                            format!("{}{}", spacing, display_text)
+                            format!("{}{}", " ".repeat(prefix_char_count), display_text)
                         } else {
-                            (*display_text).to_string() // dereferencing &str and calling str::to_string is faster than &str::to_string
+                            display_text.to_string() // TODO consider if dereferencing &str and calling str::to_string is faster than &str::to_string
                         }
                     }
                 };
